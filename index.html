@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zeroplate - AI & QR Food Redistribution Network</title>
+  
+  <!-- Tailwind CSS & FontAwesome Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Leaflet OpenStreetMap Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- QRCode.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- HTML5-QRCode Scanner Library (Camera Scan) -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap');
+    
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-serif-title {
+      font-family: 'Playfair Display', serif;
+    }
+    #map { height: 380px; width: 100%; border-radius: 1rem; }
+    
+    /* Print Styles for Certificate */
+    @media print {
+      body * { visibility: hidden !important; }
+      #certificate-modal, #certificate-modal * { visibility: visible !important; }
+      #certificate-view, #certificate-view * { visibility: visible !important; }
+      #certificate-modal {
+        position: absolute;
+        inset: 0;
+        background: white !important;
+        padding: 0;
+        margin: 0;
+      }
+      #certificate-view {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        border: 4px double #d97706 !important;
+        background: #ffffff !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-amber-500 selection:text-slate-900">
+
+  <!-- TOP STATUS BANNER -->
+  <aside class="bg-emerald-600/95 backdrop-blur text-white text-xs py-2 px-4 border-b border-emerald-500/30">
+    <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2 font-medium">
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+        </span>
+        <span class="tracking-wide uppercase text-[11px] font-bold">Live Grid Active: Lucknow District Node</span>
+      </div>
+      <div class="flex items-center gap-6 text-[11px]">
+        <span><strong id="total-meals" class="font-extrabold text-white">1,572</strong> Meals Saved</span>
+        <span class="hidden sm:inline"><strong id="total-kg" class="font-extrabold text-white">658</strong> kg Rescued</span>
+        <span><strong id="total-co2" class="font-extrabold text-white">1.64</strong> Tons CO₂ Saved</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-wrap justify-between items-center gap-4">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        <div class="bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 p-2.5 rounded-2xl shadow-lg shadow-amber-500/20 font-black text-xl flex items-center justify-center w-11 h-11">
+          <i class="fa-solid fa-utensils"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-xl font-extrabold tracking-tight text-white">ZEROPLATE</h1>
+            <span class="bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/20">v2.4 PRO</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium">Hyperlocal Food Redistribution Engine</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        
+        <!-- Live Scanner Trigger -->
+        <button onclick="openScannerModal()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-700 hover:border-amber-400/40 transition flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-camera"></i>
+          <span class="hidden sm:inline">Scan QR</span>
+        </button>
+
+        <!-- Live Map Trigger -->
+        <button onclick="openMapModal()" class="bg-indigo-600/90 hover:bg-indigo-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span>Live Map</span>
+        </button>
+
+        <!-- Certificate Generator -->
+        <button onclick="openCertificateModal()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-award"></i>
+          <span class="hidden sm:inline">Certificate</span>
+        </button>
+
+        <!-- Role Selector Switch -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button onclick="setRole('donor')" id="btn-donor" class="role-btn px-3 py-1.5 text-xs font-bold rounded-lg transition bg-amber-500 text-slate-950 shadow-md">
+            <i class="fa-solid fa-hotel mr-1"></i> Donor
+          </button>
+          <button onclick="setRole('ngo')" id="btn-ngo" class="role-btn px-3 py-1.5 text-xs font-bold rounded-lg transition text-slate-400 hover:text-white">
+            <i class="fa-solid fa-hands-holding-child mr-1"></i> NGO
+          </button>
+          <button onclick="setRole('volunteer')" id="btn-volunteer" class="role-btn px-3 py-1.5 text-xs font-bold rounded-lg transition text-slate-400 hover:text-white">
+            <i class="fa-solid fa-motorcycle mr-1"></i> Runner
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP WORKSPACE -->
+  <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT COLUMN: INTERACTIVE PANELS -->
+    <div class="lg:col-span-5 space-y-6">
+
+      <!-- DONOR FORM PANEL -->
+      <section id="panel-donor" class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-sm">
+        <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-700/50">
+          <div>
+            <h2 class="font-extrabold text-white text-lg flex items-center gap-2">
+              <span class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm border border-amber-500/20">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </span>
+              Broadcast Surplus Food
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">List excess meals directly for instant NGO claim</p>
+          </div>
+          <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded bg-slate-700/60 text-slate-300">OTP-Ready</span>
+        </div>
+
+        <form id="donation-form" onsubmit="handleDonationSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Hotel / Restaurant / Caterer Name</label>
+            <div class="relative">
+              <i class="fa-solid fa-building text-slate-500 absolute left-3.5 top-3 text-xs"></i>
+              <input type="text" id="donor-name" value="Grand Hotel Lucknow" required 
+                class="w-full text-xs p-2.5 pl-9 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none text-white transition">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Contact Phone Number</label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-2.5 text-xs text-slate-400 font-bold">+91</span>
+              <input type="tel" id="donor-mobile" placeholder="9810122334" maxlength="10" value="9810122334" required 
+                class="w-full text-xs p-2.5 pl-11 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none text-white transition">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Surplus Food Details</label>
+              <select id="food-type" class="w-full text-xs p-2.5 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+                <option value="Paneer Masala, Dal, 80 Rotis, Rice">Special Veg Thali Meal</option>
+                <option value="Cooked Rice, Dal & Sabzi">Daily Cooked Meals</option>
+                <option value="Packed Sandwich & Bakery Buns">Bakery & Snacks</option>
+                <option value="Packaged Ration & Dry Food">Packaged Goods</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Quantity (Servings)</label>
+              <input type="number" id="food-qty" value="85" min="5" required 
+                class="w-full text-xs p-2.5 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Prepared At</label>
+              <input type="time" id="food-time" value="13:30" required 
+                class="w-full text-xs p-2.5 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">Safe Shelf Life</label>
+              <select id="food-expiry" class="w-full text-xs p-2.5 bg-slate-900/80 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+                <option value="3 Hours">3 Hours (Urgent)</option>
+                <option value="5 Hours">5 Hours</option>
+                <option value="10 Hours">10 Hours</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span>Broadcast Food to Network</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- NGO FEED PANEL -->
+      <section id="panel-ngo" class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-sm hidden">
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-700/50">
+          <div>
+            <h2 class="font-extrabold text-white text-lg flex items-center gap-2">
+              <span class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm border border-emerald-500/20">
+                <i class="fa-solid fa-hand-holding-heart"></i>
+              </span>
+              Surplus Food Requests
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Claim batches immediately to feed shelters</p>
+          </div>
+          <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">Live Sync</span>
+        </div>
+        <div id="ngo-feed" class="space-y-3 max-h-[460px] overflow-y-auto pr-1"></div>
+      </section>
+
+      <!-- VOLUNTEER RUNNER PANEL -->
+      <section id="panel-volunteer" class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-sm hidden">
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-700/50">
+          <div>
+            <h2 class="font-extrabold text-white text-lg flex items-center gap-2">
+              <span class="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-sm border border-sky-500/20">
+                <i class="fa-solid fa-truck-fast"></i>
+              </span>
+              Active Dispatch Routes
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Pick up, verify QR, and transport safely</p>
+          </div>
+          <span class="text-xs font-bold text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full border border-sky-500/20">GPS Routed</span>
+        </div>
+        <div id="volunteer-feed" class="space-y-3 max-h-[460px] overflow-y-auto pr-1"></div>
+      </section>
+
+      <!-- System Notification Toast -->
+      <div id="status-toast" class="bg-slate-950 border border-amber-500/40 text-white p-4 rounded-2xl text-xs space-y-1 hidden shadow-2xl transition-all">
+        <div class="font-extrabold text-amber-400 flex items-center gap-2">
+          <i class="fa-solid fa-circle-check"></i> System Alert
+        </div>
+        <div id="toast-msg" class="text-slate-300">New batch broadcasted successfully.</div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: DISPATCH QUEUE & REAL-TIME TRACKING -->
+    <div class="lg:col-span-7 space-y-6">
+
+      <!-- Live GPS Banner -->
+      <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 p-5 rounded-3xl border border-indigo-500/20 shadow-xl flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full bg-indigo-400 animate-pulse"></span>
+            <h3 class="font-bold text-base text-white">Geofenced Lucknow Logistics Grid</h3>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">Real-time donor hub coordination, food safe life monitoring, and QR dispatch passes.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="openMapModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center gap-2">
+            <i class="fa-solid fa-map"></i> Open Map
+          </button>
+          <button onclick="openScannerModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition">
+            <i class="fa-solid fa-qrcode"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Dispatch Queue Table -->
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-3xl p-5 shadow-xl backdrop-blur-sm">
+        <div class="flex justify-between items-center mb-4">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-slate-700 flex items-center justify-center text-amber-400 text-xs">
+              <i class="fa-solid fa-list-check"></i>
+            </span>
+            <h3 class="font-bold text-white text-sm">Live Dispatch Operations</h3>
+          </div>
+          <span class="text-[11px] text-slate-400">Continuous Auto-Refresh</span>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-slate-700/50">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-900/80 text-slate-400 border-b border-slate-700/80 font-bold uppercase tracking-wider text-[10px]">
+                <th class="py-3 px-3">Donor Entity</th>
+                <th class="py-3 px-3">Food & Freshness Timer</th>
+                <th class="py-3 px-3 text-center">Meals</th>
+                <th class="py-3 px-3 text-right">Verification & Pass</th>
+              </tr>
+            </thead>
+            <tbody id="queue-table-body" class="divide-y divide-slate-700/50 bg-slate-900/30"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL 1: DYNAMIC QR PICKUP PASS -->
+  <div id="qr-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 max-w-sm w-full rounded-3xl shadow-2xl p-6 text-center space-y-4">
+      <div class="flex justify-center">
+        <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-2xl text-2xl w-14 h-14 flex items-center justify-center shadow-inner">
+          <i class="fa-solid fa-qrcode"></i>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-black text-white">Digital Pickup Pass</h3>
+        <p class="text-xs text-slate-400 mt-0.5">Show this verified QR to donor gate security for clearance</p>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl flex justify-center items-center shadow-lg mx-auto w-fit">
+        <div id="qr-code-box"></div>
+      </div>
+
+      <div class="bg-slate-800/80 border border-slate-700/80 p-3.5 rounded-2xl text-left text-xs space-y-2">
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400">Claim Token:</span>
+          <span id="qr-token" class="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20"></span>
+        </div>
+        <div>
+          <span class="text-slate-400 block text-[10px]">Food Consignment:</span>
+          <span id="qr-food-desc" class="font-bold text-slate-200 line-clamp-1"></span>
+        </div>
+        <div>
+          <span class="text-slate-400 block text-[10px]">Donor Hotline:</span>
+          <span id="qr-donor-phone" class="font-mono text-emerald-400"></span>
+        </div>
+      </div>
+
+      <div class="space-y-2 pt-1">
+        <button onclick="promptOtpModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-shield-halved"></i> Verify Pickup with OTP
+        </button>
+        <button onclick="closeQrModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs py-2.5 rounded-xl transition">
+          Close Window
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: 4-DIGIT OTP VERIFICATION -->
+  <div id="otp-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 max-w-sm w-full rounded-3xl shadow-2xl p-6 text-center space-y-4">
+      <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto text-xl">
+        <i class="fa-solid fa-key"></i>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-black text-white">Security Handover OTP</h3>
+        <p class="text-xs text-slate-400 mt-1">Ask the Donor for the 4-digit handover PIN</p>
+        <div class="mt-2 text-[11px] bg-slate-800 text-amber-400 py-1 px-2 rounded-lg border border-slate-700 inline-block font-mono">
+          Demo Master PIN: <strong>4826</strong>
+        </div>
+      </div>
+
+      <!-- 4 OTP Input Boxes -->
+      <div class="flex justify-center gap-3 my-4">
+        <input type="text" maxlength="1" class="ot
+                  <input type="text" maxlength="1" class="otp-box w-12 h-12 text-center text-xl font-bold bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 focus:outline-none text-white transition" onkeyup="handleOtpInput(this, 1)">
+        <input type="text" maxlength="1" class="otp-box w-12 h-12 text-center text-xl font-bold bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 focus:outline-none text-white transition" onkeyup="handleOtpInput(this, 2)">
+        <input type="text" maxlength="1" class="otp-box w-12 h-12 text-center text-xl font-bold bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 focus:outline-none text-white transition" onkeyup="handleOtpInput(this, 3)">
+      </div>
+
+      <div class="space-y-2">
+        <button onclick="verifyOtpCode()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs py-3 rounded-xl transition shadow-lg shadow-amber-500/20">
+          Confirm Food Handover
+        </button>
+        <button onclick="closeOtpModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs py-2 rounded-xl transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: LIVE CAMERA QR SCANNER -->
+  <div id="scanner-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 max-w-md w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+      <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+        <div class="flex items-center gap-2 font-bold text-xs text-white">
+          <i class="fa-solid fa-camera text-amber-400"></i>
+          <span>Optical QR Gate Scanner</span>
+        </div>
+        <button onclick="closeScannerModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div id="reader" class="rounded-2xl overflow-hidden bg-black w-full min-h-[260px]"></div>
+        <p class="text-[11px] text-slate-400 text-center">Point camera towards the recipient or volunteer pass.</p>
+        <div class="border-t border-slate-800 pt-3">
+          <button onclick="simulateScanSuccess()" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs py-2.5 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Simulate Successful Scan (Demo Mode)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: INTERACTIVE OSM LEAFLET MAP -->
+  <div id="map-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 max-w-3xl w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+      <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+        <div class="flex items-center gap-2 font-bold text-xs text-white">
+          <i class="fa-solid fa-map-location-dot text-indigo-400"></i>
+          <span>Lucknow Hyperlocal Dispatch Map</span>
+        </div>
+        <button onclick="closeMapModal()" class="text-slate-400 hover:text-white font-bold text-xl">&times;</button>
+      </div>
+      <div class="p-4">
+        <div id="map"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: OFFICIAL IMPACT CERTIFICATE -->
+  <div id="certificate-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 no-print">
+        <div class="flex items-center gap-2 font-bold text-xs text-white">
+          <i class="fa-solid fa-award text-amber-400 text-base"></i>
+          <span>Official Social Impact Certificate</span>
+        </div>
+        <button onclick="closeCertificateModal()" class="text-slate-400 hover:text-white font-bold text-xl">&times;</button>
+      </div>
+
+      <!-- Cert Input Section -->
+      <div id="cert-form-sec" class="p-6 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+          <p class="text-xs text-slate-400">Issue an instant certificate recognized by Zeroplate partners.</p>
+          <button onclick="loadDemoCertificate()" class="bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 font-bold text-xs px-3 py-1.5 rounded-lg border border-sky-500/20 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-eye"></i> Demo Preview
+          </button>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Participant / Entity Name</label>
+          <input type="text" id="cert-name" placeholder="e.g., Grand Hotel Lucknow / Naitik Dubey" class="w-full text-xs p-2.5 bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Role of Honour</label>
+            <select id="cert-role" class="w-full text-xs p-2.5 bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+              <option value="Food Donor & Sustainability Partner">Food Donor Champion</option>
+              <option value="Active Volunteer Delivery Runner">Logistics & Runner Hero</option>
+              <option value="NGO Community Distribution Partner">NGO Community Partner</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Verified Impact</label>
+            <input type="text" id="cert-impact" value="150+ Fresh Meals Salvaged & Distributed" class="w-full text-xs p-2.5 bg-slate-800 border border-slate-700 rounded-xl focus:border-amber-400 outline-none text-white">
+          </div>
+        </div>
+
+        <button onclick="generateCertificate()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs py-3.5 rounded-xl transition shadow-lg shadow-amber-500/20">
+          Generate Certificate
+        </button>
+      </div>
+
+      <!-- Certificate Preview Container -->
+      <div id="cert-preview-sec" class="p-6 hidden overflow-y-auto space-y-4">
+        <div id="certificate-view" class="border-8 border-double border-amber-600 p-6 sm:p-8 rounded-2xl bg-amber-50 text-slate-900 text-center space-y-4 relative shadow-2xl">
+          <div class="flex justify-between items-center text-[10px] tracking-widest uppercase font-bold text-slate-500 border-b border-amber-200 pb-2">
+            <span>Zeroplate Initiative</span>
+            <span>Ref: ZP-2026-VAL</span>
+            <span class="text-amber-700">Lucknow Hub</span>
+          </div>
+
+          <div class="py-2">
+            <i class="fa-solid fa-award text-4xl text-amber-600 mb-1"></i>
+            <h2 class="text-2xl font-black tracking-wider uppercase font-serif-title text-slate-900">Certificate of Appreciation</h2>
+            <p class="text-xs text-amber-900 italic font-medium mt-1">In Recognition of Exemplary Service in Hunger Mitigation & Zero Food Waste</p>
+          </div>
+
+          <div class="text-xs leading-relaxed text-slate-700 space-y-2">
+            <p>This credential is honorably awarded to</p>
+            <div id="out-cert-name" class="text-xl sm:text-2xl font-extrabold font-serif-title text-slate-950 underline decoration-amber-500 underline-offset-4 py-1">Grand Hotel Lucknow</div>
+            <p>for distinguished contributions as a <strong id="out-cert-role" class="text-amber-900">Food Donor Champion</strong> under the <strong>Zeroplate Action Network</strong>.</p>
+            <p class="text-[11px] text-slate-600 italic">Audited Contribution: <strong id="out-cert-impact" class="text-slate-900 font-bold">150+ Fresh Meals Salvaged & Distributed</strong></p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8 pt-6 text-center text-xs border-t border-amber-200">
+            <div>
+              <div class="font-extrabold font-serif-title text-slate-900 text-sm">Zeroplate Steering Council</div>
+              <div class="text-[10px] text-slate-500 border-t border-slate-300 pt-0.5 mt-1">Directorate of Operations</div>
+            </div>
+            <div>
+              <div class="font-extrabold font-serif-title text-slate-900 text-sm" id="out-cert-date">Oct 25, 2026</div>
+              <div class="text-[10px] text-slate-500 border-t border-slate-300 pt-0.5 mt-1">Validation Date</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 no-print">
+          <button onclick="window.print()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-3 rounded-xl transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-print"></i> Print / Save as PDF
+          </button>
+          <button onclick="resetCertForm()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs px-4 py-3 rounded-xl transition">
+            Create Another
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-slate-950 text-slate-400 py-8 px-4 border-t border-slate-800 mt-12 text-center text-xs">
+    <div class="max-w-4xl mx-auto space-y-3">
+      <div class="flex justify-center items-center gap-2 font-bold text-white text-sm">
+        <i class="fa-solid fa-utensils text-amber-500"></i>
+        <span>ZEROPLATE INITIATIVE</span>
+      </div>
+      <p class="text-slate-300 font-medium">
+        Developed with <span class="text-rose-500">❤️</span> by <strong class="text-amber-400">Team Infinite Minds</strong>
+      </p>
+      <p class="text-[11px] text-slate-500">
+        <strong>Team Members:</strong> Naitik, Arshad, Adarsh, Akanksha, Avani, &amp; Himanshu
+      </p>
+      <div class="pt-2 text-[10px] text-slate-600 border-t border-slate-900">
+        © 2026 Zeroplate Initiative. All rights reserved. Built for Smart Mobility &amp; Zero Hunger Sustainability.
+      </div>
+    </div>
+  </footer>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    // State Store with Live Countdown Seeds
+    let listings = [
+      {
+        id: 1,
+        donor: "Grand Hotel Lucknow",
+        phone: "+91 9810122334",
+        food: "Paneer Masala, Dal, 80 Rotis, Rice",
+        servings: 85,
+        time: "13:30",
+        expiry: "3 Hours",
+        expiryTimestamp: Date.now() + (2 * 3600 * 1000) + (42 * 60 * 1000), // 2h 42m left
+        claimed: false,
+        token: "ZP-PASS-542710"
+      },
+      {
+        id: 2,
+        donor: "Royal Awadh Banquet",
+        phone: "+91 9415012345",
+        food: "Special Awadhi Biryani & Gravy",
+        servings: 50,
+        time: "14:15",
+        expiry: "5 Hours",
+        expiryTimestamp: Date.now() + (4 * 3600 * 1000) + (18 * 60 * 1000), // 4h 18m left
+        claimed: false,
+        token: "ZP-PASS-881294"
+      }
+    ];
+
+    let currentPassIndex = null;
+    let mapInstance = null;
+    let html5QrScanner = null;
+
+    // Toast helper
+    function showToast(msg) {
+      const toast = document.getElementById('status-toast');
+      const text = document.getElementById('toast-msg');
+      text.innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => { toast.classList.add('hidden'); }, 3500);
+    }
+
+    // Role Switcher
+    function setRole(role) {
+      const panels = ['donor', 'ngo', 'volunteer'];
+      panels.forEach(p => {
+        const panel = document.getElementById(`panel-${p}`);
+        const btn = document.getElementById(`btn-${p}`);
+        if (p === role) {
+          panel.classList.remove('hidden');
+          btn.className = "role-btn px-3 py-1.5 text-xs font-bold rounded-lg transition bg-amber-500 text-slate-950 shadow-md";
+        } else {
+          panel.classList.add('hidden');
+          btn.className = "role-btn px-3 py-1.5 text-xs font-bold rounded-lg transition text-slate-400 hover:text-white";
+        }
+      });
+      renderAll();
+    }
+
+    // Live Countdown Badge (Auto-Looping Demo Safe)
+    function getRemainingTimeBadge(item) {
+      let diff = item.expiryTimestamp - Date.now();
+      
+      // Auto-loop: Demo ke dauran timer 0 ho jaye toh fresh time add karega
+      if (diff <= 0) {
+        item.expiryTimestamp = Date.now() + (2 * 3600 * 1000) + (30 * 60 * 1000);
+        diff = item.expiryTimestamp - Date.now();
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const isUrgent = diff < (30 * 60 * 1000);
+      const badgeStyle = isUrgent 
+        ? "bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse" 
+        : "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+
+      return `
+        <span class="${badgeStyle} font-mono font-bold px-2 py-0.5 rounded text-[10px] inline-flex items-center gap-1">
+          <i class="fa-regular fa-clock"></i> ${hours}h ${mins}m ${secs < 10 ? '0' + secs : secs}s left
+        </span>
+      `;
+    }
+
+    // Handle Form Submit
+    function handleDonationSubmit(e) {
+      e.preventDefault();
+      const donor = document.getElementById('donor-name').value;
+      const phone = "+91 " + document.getElementById('donor-mobile').value;
+      const food = document.getElementById('food-type').value;
+      const qty = parseInt(document.getElementById('food-qty').value, 10);
+      const time = document.getElementById('food-time').value;
+      const expiry = document.getElementById('food-expiry').value;
+      const token = "ZP-PASS-" + Math.floor(100000 + Math.random() * 900000);
+
+      const hoursToAdd = parseInt(expiry.split(' ')[0], 10) || 3;
+      const expiryTimestamp = Date.now() + (hoursToAdd * 3600 * 1000);
+
+      listings.unshift({
+        id: Date.now(),
+        donor,
+        phone,
+        food,
+        servings: qty,
+        time,
+        expiry,
+        expiryTimestamp,
+        claimed: false,
+        token
+      });
+
+      // Update counters
+      const mealsEl = document.getElementById('total-meals');
+      mealsEl.innerText = (parseInt(mealsEl.innerText.replace(/,/g, '')) + qty).toLocaleString();
+
+      showToast(`Batch broadcasted! Security Token ${token} issued.`);
+      renderAll();
+    }
+
+    // Render Data to Table, NGO, and Volunteer Views
+    function renderAll() {
+      // 1. Table
+      const tbody = document.getElementById('queue-table-body');
+      tbody.innerHTML = listings.map((item, index) => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="py-3 px-3">
+            <div class="font-bold text-white">${item.donor}</div>
+            <div class="text-[11px] text-slate-400 font-mono">${item.phone}</div>
+          </td>
+          <td class="py-3 px-3">
+            <div class="font-medium text-slate-200 line-clamp-1 max-w-[200px]" title="${item.food}">${item.food}</div>
+            <div class="mt-1">${getRemainingTimeBadge(item)}</div>
+          </td>
+          <td class="py-3 px-3 text-center">
+            <span class="font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">${item.servings}</span>
+          </td>
+          <td class="py-3 px-3 text-right">
+            <button onclick="openQrModal(${index})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl transition shadow-md flex items-center gap-1.5 ml-auto">
+              <i class="fa-solid fa-qrcode"></i>
+              <span>${item.claimed ? 'View Pass' : 'Claim Pass'}</span>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      // 2. NGO Feed
+      const ngoFeed = document.getElementById('ngo-feed');
+      ngoFeed.innerHTML = listings.filter(l => !l.claimed).map((item, index) => `
+        <div class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/50 space-y-3">
+          <div class="flex justify-between items-start gap-2">
+            <div>
+              <h4 class="font-extrabold text-white text-sm">${item.donor}</h4>
+              <p class="text-xs text-slate-400">${item.food}</p>
+            </div>
+            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-2.5 py-1 rounded-full font-extrabold">${item.servings} Meals</span>
+          </div>
+          <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800">
+            <div>${getRemainingTimeBadge(item)}</div>
+            <button onclick="openQrModal(${index})" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">
+              Claim Pickup Pass
+            </button>
+          </div>
+        </div>
+      `).join('') || '<p class="text-xs text-slate-500 text-center py-4">No pending surplus food. Check back in a few minutes.</p>';
+
+      // 3. Volunteer Feed
+      const volFeed = document.getElementById('volunteer-feed');
+      volFeed.innerHTML = listings.map((item, index) => `
+        <div class="p-4 border border-slate-700/80 rounded-2xl bg-slate-900/50 space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="font-extrabold text-white text-sm">${item.donor}</span>
+            <span class="text-[11px] font-mono font-bold text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded border border-sky-400/20">Route #LKO-${index + 1}</span>
+          </div>
+          <p class="text-xs text-slate-300">Payload: ${item.food} (${item.servings} Servings)</p>
+          <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800">
+            <div>${getRemainingTimeBadge(item)}</div>
+            <div class="flex gap-2">
+              <button onclick="openMapModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl font-bold text-xs transition">Navigate</button>
+              <button onclick="openQrModal(${index})" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-700 transition">Show Pass</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // QR Modal logic
+    function openQrModal(index) {
+      currentPassIndex = index;
+      const item = listings[index];
+      document.getElementById('qr-food-desc').innerText = item.food;
+      document.getElementById('qr-donor-phone').innerText = item.phone;
+      document.getElementById('qr-token').innerText = item.token;
+
+      const qrBox = document.getElementById('qr-code-box');
+      qrBox.innerHTML = '';
+      
+      new QRCode(qrBox, {
+        text: `ZEROPLATE:${item.token}|${item.donor}|${item.servings}meals|VALID`,
+        width: 140,
+        height: 140,
+        colorDark: "#020617",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      document.getElementById('qr-modal').classList.remove('hidden');
+    }
+
+    function closeQrModal() {
+      document.getElementById('qr-modal').classList.add('hidden');
+    }
+
+    // OTP Handover Modal
+    function promptOtpModal() {
+      closeQrModal();
+      document.getElementById('otp-modal').classList.remove('hidden');
+      const inputs = document.querySelectorAll('.otp-box');
+      inputs.forEach(i => i.value = '');
+      inputs[0].focus();
+    }
+
+    function closeOtpModal() {
+      document.getElementById('otp-modal').classList.add('hidden');
+    }
+
+    function handleOtpInput(input, index) {
+      const inputs = document.querySelectorAll('.otp-box');
+            renderAll();
+    });
+  </script>
+</body>
+</html>
